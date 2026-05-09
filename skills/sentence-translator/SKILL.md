@@ -22,13 +22,13 @@ When the source file exceeds 10,000 **Unicode characters** (`wc -m` on the file)
 
 ### Step 1 — Split into chunks
 
-- Split at natural boundaries in this priority order: level-1/2 headings (`#`, `##`) > blank-line paragraph breaks > sentence endings
-- A heading always starts a new chunk (goes into the chunk that follows it, not the chunk before)
-- Target chunk size: 5,000–8,000 characters each
-- Never split inside a code block, table, or blockquote — keep them whole in one chunk
-  - Exception: if a single indivisible block (code, table, blockquote) exceeds 8,000 characters on its own, place it alone in its own chunk regardless of size limit
-- If a frontmatter block (`---`) is present, keep it attached to the first chunk
-- Write each chunk to a temporary file named `<original_name>.part<N>.tmp.md` in the same directory (N = 1, 2, 3 …)
+- Use the dedicated splitting tool:
+  ```bash
+  uv run skills/sentence-translator/scripts/split_markdown.py "{file_path}" --min 5000 --max 8000
+  ```
+- This tool automatically follows the priority order (headings > blank lines > sentence endings) and ensures code blocks and tables are never split.
+- The tool will generate temporary files named `<original_name>.part<N>.tmp.md` in the same directory.
+- If a frontmatter block (`---`) is present, it is kept attached to the first chunk.
 
 ### Step 2 — Translate each chunk (strictly one at a time)
 
