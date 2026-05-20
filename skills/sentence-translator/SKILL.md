@@ -44,10 +44,16 @@ After translating each chunk, apply the Review Checklist before translating the 
 
 ### Step 4 — Merge translated chunks
 
-- Concatenate all `<original_name>.part<N>.zh.tmp.md` files in order into the final output file (`<original_name>.zh.md`)
-- Ensure exactly one blank line between the last line of one chunk and the first line of the next (avoid double blank lines at join points)
-- Verify the merge: the output file must be non-empty and must contain all major section headings from the source — if any heading is missing, stop and investigate before deleting temp files
-- Delete all temporary files (`*.part*.tmp.md` and `*.part*.zh.tmp.md`) only after verifying the output
+- Use the dedicated merging tool to concatenate the chunks and verify structural integrity:
+  ```bash
+  uv run skills/sentence-translator/scripts/merge_markdown.py "{file_path}"
+  ```
+- This tool automatically:
+  - Sorts all `<original_name>.part<N>.zh.tmp.md` files in numerical order.
+  - Concatenates the chunks ensuring exactly one blank line between them.
+  - Automatically extracts and compares the heading structure of the original file and the merged translated file.
+  - Safely deletes all temporary files (`*.part*.tmp.md` and `*.part*.zh.tmp.md`) only after verification succeeds.
+- If verification fails (e.g., heading count mismatch), the tool will keep the temporary files so you can investigate and fix any missing content.
 
 ### Step 5 — Final cross-chunk review
 
