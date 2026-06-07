@@ -1,0 +1,8 @@
+interface:
+  display_name: "HTML Slide Deck"
+  short_description: "生成可编辑 HTML PPT 与售前汇报模板"
+  brand_color: "#0B6FFF"
+  default_prompt: "Use $html-slide-deck to create a browser-based, editable HTML presentation from my outline."
+
+policy:
+  allow_implicit_invocation: true

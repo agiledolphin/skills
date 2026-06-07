@@ -1,0 +1,12 @@
+﻿*.pptx
+*.ppt
+*.key
+*.pdf
+*.mp4
+*.mov
+
+private-assets/
+source-materials/
+
+.DS_Store
+Thumbs.db
