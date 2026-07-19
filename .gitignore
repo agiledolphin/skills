@@ -1,2 +1,10 @@
 .venv/
+.antigravitycli/
 .DS_Store
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Test Directory
+tests/
