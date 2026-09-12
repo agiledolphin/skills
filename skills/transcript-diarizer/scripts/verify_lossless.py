@@ -100,6 +100,13 @@ def verify(orig_path: str, diarized_path: str, allow_raw_timestamps: bool = Fals
     else:
         print("[OK] 无遗留原始时间戳标签。")
 
+    # Check speaker timestamps: speaker names should not have timestamp suffixes
+    speaker_ts = re.findall(r'\*\*[^\*\n]+?\s*\[\d+:\d+(?::\d+)?\]\*\*[:：]', diar_text)
+    if speaker_ts:
+        print(f"[WARN] 发现 {len(speaker_ts)} 处发言人姓名后残留时间戳 (规范要求使用纯净格式 **姓名**：): {speaker_ts[:3]}")
+    else:
+        print("[OK] 发言人格式规范（无多余时间戳后缀）。")
+
     # Chapters
     orig_chapters = re.findall(r'^###\s+.*$', orig_text, re.MULTILINE)
     diar_chapters = re.findall(r'^###\s+.*$', diar_text, re.MULTILINE)

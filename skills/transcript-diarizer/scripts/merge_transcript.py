@@ -112,6 +112,8 @@ def merge_transcript(original_file: str, output_file: str = None):
         cleaned_parts.append(p_clean)
 
     full_body = '\n\n---\n\n'.join(cleaned_parts) + '\n'
+    # Automatically strip any speaker timestamps if present (e.g. **姓名 [00:00]**： -> **姓名**：)
+    full_body = re.sub(r'\*\*([^\*\n]+?)\s*\[\d+:\d+(?::\d+)?\]\*\*([:：])', r'**\1**\2', full_body)
     full_doc = preamble_updated + full_body
 
     # Write merged file
