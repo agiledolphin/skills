@@ -1,0 +1,52 @@
+{
+  "skill_name": "sentence-translator",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "把 evals/files/structure-sample.md 逐句翻译成中文。",
+      "expected_output": "在源文件同目录生成 structure-sample.zh.md：逐句对应翻译，段落与全部 Markdown 结构保持不变；frontmatter、代码块（含注释）、链接和图片 URL 原样保留；术语按分级规则处理。",
+      "files": ["evals/files/structure-sample.md"],
+      "expectations": [
+        "输出文件为源文件同目录下的 structure-sample.zh.md，源文件未被修改",
+        "YAML frontmatter 与原文完全一致，未被翻译",
+        "代码块内容（包括 # Retrieve the top passages for a question 和行尾注释）与原文逐字一致",
+        "所有链接和图片的 URL 与原文一致，链接文字和图片 alt 文本已译成中文",
+        "标题、有序列表、无序列表、表格、引用块、加粗、斜体、删除线的 Markdown 标记全部保留，数量与原文一致",
+        "段落数与原文一致，没有合并或新增段落",
+        "API、JSON 保留英文原文，没有译成中文",
+        "retrieval-augmented generation 首次出现时译文附带英文原文括注，之后再出现时只用中文译名",
+        "除专有名词和代码外，正文中没有残留未翻译的英文句子"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "帮我把 evals/files/long-guide.md 翻译成中文，要逐句对应。",
+      "expected_output": "源文件超过 10,000 字符，按大文件流程处理：用 split_markdown.py 分块、逐块顺序翻译、用 merge_markdown.py 合并并校验标题结构，最终生成完整的 long-guide.zh.md，临时文件被清理。",
+      "files": ["evals/files/long-guide.md"],
+      "expectations": [
+        "通过 uv run 调用了 scripts/split_markdown.py 对源文件分块",
+        "通过 uv run 调用了 scripts/merge_markdown.py 合并译文，且标题结构校验通过",
+        "最终输出文件为源文件同目录下的 long-guide.zh.md",
+        "合并完成后，源文件所在目录中没有残留 *.tmp.md 临时文件",
+        "译文的标题数量与原文一致（1 个一级标题、10 个二级标题；代码块里以 # 开头的注释不算标题）",
+        "表格完整保留 6 行数据（含表头），百分比数值与原文一致",
+        "Python 代码块与原文逐字一致，包括注释 # Print every loan that is past its due date",
+        "最后一节 Looking Ahead 的最后一段已被翻译，没有在分块边界丢失内容",
+        "同一术语在全文中译法一致（如 tool library 始终使用同一个中文译名）"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "这篇日文笔记 evals/files/japanese-note.md 帮我翻成中文。",
+      "expected_output": "识别源语言为日语，在同目录生成 japanese-note.zh.md，逐句译为通顺的中文，保留标题、列表与段落结构，保持原文随笔式的口吻。",
+      "files": ["evals/files/japanese-note.md"],
+      "expectations": [
+        "输出文件为源文件同目录下的 japanese-note.zh.md",
+        "一级标题、二级标题和 3 个列表项的 Markdown 结构与原文一致",
+        "每个日文句子都有一个对应的中文句子，没有合并或拆分句子",
+        "译文中没有残留日文假名",
+        "保留了随笔式的第一人称口吻，没有改写成正式说明文"
+      ]
+    }
+  ]
+}
