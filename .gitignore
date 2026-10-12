@@ -8,3 +8,6 @@ __pycache__/
 
 # Test Directory
 tests/
+
+# Skill Test Output
+/output/

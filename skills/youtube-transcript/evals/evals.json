@@ -21,12 +21,12 @@
     {
       "id": 2,
       "prompt": "帮我抓一下 https://youtu.be/o8B0_OlCL78 的逐字稿",
-      "expected_output": "用户没有指定保存位置；技能应先查看当前工作区的约定（AGENTS.md / CLAUDE.md），没有明确约定时询问用户保存到哪里，而不是自行写入某个预设目录（如 inbox/clippings/）。",
+      "expected_output": "用户没有指定保存位置；技能应查看当前工作区的约定（AGENTS.md / CLAUDE.md）。本项目约定测试输出保存到 ./output/，因此应直接保存到 ./output/ 下，而不是写入某个预设目录（如 inbox/clippings/）；若工作区没有约定，则应询问用户。",
       "files": [],
       "expectations": [
-        "在写入文件前，查看了工作区的约定文件（如 AGENTS.md 或 CLAUDE.md），或直接询问了用户保存位置",
-        "工作区没有约定剪藏目录时，向用户询问了保存位置",
-        "没有在未经确认的情况下创建 inbox/clippings/ 目录"
+        "在写入文件前，查看了工作区的约定文件（如 AGENTS.md 或 CLAUDE.md）",
+        "按本项目约定，输出文件保存为 ./output/Monday Medications October 12th 2026.md",
+        "没有创建 inbox/clippings/ 目录"
       ]
     },
     {

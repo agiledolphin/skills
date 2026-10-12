@@ -3,6 +3,8 @@
 This workspace is dedicated to the development and evaluation of **Skills**. Each skill is located in the `./skills/` directory and follows a standardized structure.
 
 - **Python Tooling:** Use `uv` for all Python-related tasks, including package management, environment handling, and running scripts.
+- **Test Output:** 在本项目中测试技能时，技能生成的输出文件统一保存到 `./output/` 目录下。
+- **Plan:** 待办与后续任务记录在 `PLAN.md` 中。
 
 ## Skill 标准目录结构
 
