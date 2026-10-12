@@ -12,8 +12,9 @@ description: Analyze, identify, and split dialogue speakers in interview and pod
 ## 核心执行铁律 (Non-negotiable Rules)
 
 1. **强制使用 `uv` 运行 Python**：
-   - 必须通过 `uv run` 执行所有 Python 脚本或单行命令（例如 `uv run .agents/skills/transcript-diarizer/scripts/...` 或 `uv run python -c "..."`）。
+   - 必须通过 `uv run` 执行所有 Python 脚本或单行命令（例如 `uv run scripts/...` 或 `uv run python -c "..."`）。
    - **严禁**直接调用裸 `python` 或 `python3` 命令。
+   - 文中脚本路径均相对于本技能目录（即 SKILL.md 所在目录）。
 2. **临时文件同级就地存储 (Colocated Temporary Files)**：
    - 所有中间分块文件（如 `.preamble.*.tmp.md`、`.part01.*.tmp.md` 等）**必须且只能存放在待处理源文件所在的同级目录下**（即 `target_file.parent`）。
    - **严禁**将临时文件散落在工作区根目录（`/Users/jiaming/notebook`）、系统 `/tmp` 或 Subagent 外部临时目录。
@@ -54,7 +55,7 @@ flowchart TD
 当逐字稿正文超过 10,000 字符或 5 个章节时，使用分块脚本在**源文件所在目录下**生成临时分块：
 
 ```bash
-uv run .agents/skills/transcript-diarizer/scripts/split_transcript.py "{file_path}" --chapters 5
+uv run scripts/split_transcript.py "{file_path}" --chapters 5
 ```
 
 - 该脚本将自动在 `{file_path}` 所在目录生成：
@@ -105,7 +106,7 @@ uv run .agents/skills/transcript-diarizer/scripts/split_transcript.py "{file_pat
 处理完毕各分块后，使用合并脚本进行自动化组装、`0 diff` 强制校验与临时文件清理：
 
 ```bash
-uv run .agents/skills/transcript-diarizer/scripts/merge_transcript.py "{original_file_path}"
+uv run scripts/merge_transcript.py "{original_file_path}"
 ```
 
 - 该脚本将自动：

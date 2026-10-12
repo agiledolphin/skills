@@ -18,13 +18,13 @@ Translate foreign language markdown documents into Chinese, sentence by sentence
 
 ## Large File Workflow
 
-When the source file exceeds 10,000 **Unicode characters** (`wc -m` on the file), split it into chunks before translating. Process chunks strictly sequentially — do not translate chunk N+1 until chunk N is fully translated and reviewed.
+When the source file exceeds 10,000 **Unicode characters** (`wc -m` on the file), split it into chunks before translating. Script paths below are relative to this skill's directory (where this SKILL.md lives). Process chunks strictly sequentially — do not translate chunk N+1 until chunk N is fully translated and reviewed.
 
 ### Step 1 — Split into chunks
 
 - Use the dedicated splitting tool:
   ```bash
-  uv run skills/sentence-translator/scripts/split_markdown.py "{file_path}" --min 5000 --max 8000
+  uv run scripts/split_markdown.py "{file_path}" --min 5000 --max 8000
   ```
 - This tool automatically follows the priority order (headings > blank lines > sentence endings) and ensures code blocks and tables are never split.
 - The tool will generate temporary files named `<original_name>.part<N>.tmp.md` in the same directory.
@@ -46,7 +46,7 @@ After translating each chunk, apply the Review Checklist before translating the 
 
 - Use the dedicated merging tool to concatenate the chunks and verify structural integrity:
   ```bash
-  uv run skills/sentence-translator/scripts/merge_markdown.py "{file_path}"
+  uv run scripts/merge_markdown.py "{file_path}"
   ```
 - This tool automatically:
   - Sorts all `<original_name>.part<N>.zh.tmp.md` files in numerical order.
