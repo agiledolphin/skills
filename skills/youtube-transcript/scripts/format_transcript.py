@@ -4,19 +4,17 @@
 # dependencies = []
 # ///
 """
-fetch_transcript.py
+format_transcript.py
 
-Fetch and process YouTube video transcripts using youtube-transcript-api via uvx.
-Outputs clean Markdown formatted with Obsidian YAML frontmatter and timestamp blocks.
+Format a YouTube transcript extracted by extract_transcript_panel.js (via agent-browser)
+into clean Markdown with Obsidian YAML frontmatter and timestamp blocks.
+Video title and author are fetched from YouTube oEmbed.
 """
 
 import sys
-import os
 import re
 import json
 import urllib.request
-import urllib.parse
-import subprocess
 import argparse
 from datetime import datetime
 from pathlib import Path
@@ -66,41 +64,20 @@ def fetch_oembed_metadata(video_id: str) -> dict:
         }
 
 
-def fetch_transcript_json(video_id: str, languages: list[str] = None) -> list[dict]:
-    """Fetch raw transcript JSON via uvx running youtube-transcript-api."""
-    cmd = [
-        "uvx",
-        "--from",
-        "youtube-transcript-api",
-        "youtube_transcript_api",
-        "--format",
-        "json"
-    ]
-    if languages:
-        cmd.extend(["--languages"] + languages + ["--", video_id])
-    else:
-        cmd.append(video_id)
-
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    raw_output = proc.stdout.strip()
-
-    if "Could not retrieve a transcript" in raw_output or "blocking requests from your IP" in raw_output:
-        raise RuntimeError(
-            f"YouTube blocked the request or transcript unavailable for {video_id}.\n"
-            "YouTube frequently rate-limits cloud IPs. Retry in a few minutes, or download the raw JSON elsewhere and pass it via --input-json."
-        )
-
-    if proc.returncode != 0:
-        err = proc.stderr.strip() or raw_output
-        raise RuntimeError(f"youtube-transcript-api failed (exit code {proc.returncode}): {err}")
-
-    try:
-        data = json.loads(raw_output)
-        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
-            return data[0]
-        return data
-    except Exception as e:
-        raise RuntimeError(f"Failed to parse transcript JSON: {e}\nRaw output: {raw_output[:300]}")
+def load_input_json(path: str) -> list[dict]:
+    """
+    Load the output of extract_transcript_panel.js saved from `agent-browser eval`:
+    a JSON string wrapping [{text, start, duration}], or {"error": ...} on failure.
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if isinstance(data, str):
+        data = json.loads(data)
+    if isinstance(data, dict) and "error" in data:
+        raise RuntimeError(f"Browser transcript extraction failed: {data['error']}")
+    if not isinstance(data, list):
+        raise ValueError(f"Unexpected transcript JSON in {path}: expected a list of segments")
+    return data
 
 
 def format_timestamp(seconds: float) -> str:
@@ -193,12 +170,12 @@ def sanitize_filename(name: str) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Fetch and format YouTube video transcripts.")
-    parser.add_argument("url_or_id", nargs="?", default="", help="YouTube video URL or 11-character video ID")
-    parser.add_argument("--input-json", help="Path to pre-downloaded raw transcript JSON file")
-    parser.add_argument("-o", "--output", help="Output Markdown file path")
-    parser.add_argument("-l", "--languages", default="en,zh-Hans,zh-Hant,zh,ja",
-                        help="Comma-separated language codes to try (default: en,zh-Hans,zh-Hant,zh,ja)")
+    parser = argparse.ArgumentParser(description="Format a browser-extracted YouTube transcript as Markdown.")
+    parser.add_argument("url_or_id", help="YouTube video URL or 11-character video ID")
+    parser.add_argument("--input-json", required=True,
+                        help="Transcript JSON saved from `agent-browser eval` running extract_transcript_panel.js")
+    parser.add_argument("-o", "--output",
+                        help="Output file path, or a directory to save {Sanitized_Title}.md into (default: current directory)")
     parser.add_argument("--format", choices=["timestamps", "clean", "json"], default="timestamps",
                         help="Output format: timestamps (default), clean, or json")
     parser.add_argument("--max-gap", type=float, default=2.5,
@@ -206,31 +183,13 @@ def main():
 
     args = parser.parse_args()
 
-    if not args.url_or_id and not args.input_json:
-        parser.error("Either url_or_id or --input-json must be provided.")
+    video_id = extract_video_id(args.url_or_id)
+    items = load_input_json(args.input_json)
 
-    if args.input_json:
-        with open(args.input_json, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
-                items = data[0]
-            else:
-                items = data
-        video_id = extract_video_id(args.url_or_id) if args.url_or_id else "local"
-        title = Path(args.input_json).stem
-        author = "YouTube"
-    else:
-        video_id = extract_video_id(args.url_or_id)
-        lang_list = [l.strip() for l in args.languages.split(",") if l.strip()]
-
-        print(f"Fetching metadata for video ID: {video_id}...", file=sys.stderr)
-        meta = fetch_oembed_metadata(video_id)
-        title = meta["title"]
-        author = meta["author"]
-
-        print(f"Fetching transcript for: {title}...", file=sys.stderr)
-        items = fetch_transcript_json(video_id, lang_list)
-        print(f"Retrieved {len(items)} caption entries.", file=sys.stderr)
+    print(f"Fetching metadata for video ID: {video_id}...", file=sys.stderr)
+    meta = fetch_oembed_metadata(video_id)
+    title = meta["title"]
+    author = meta["author"]
 
     if args.format == "json":
         output_content = json.dumps(items, indent=2, ensure_ascii=False)
@@ -248,8 +207,6 @@ def main():
             f"description: {yaml_str(f'Transcript for YouTube video: {title} by {author}.')}",
             "tags:",
             '  - "clippings"',
-            '  - "voices"',
-            '  - "youtube"',
             "---",
             "",
             "## 逐字稿 (Transcript)",
@@ -268,12 +225,14 @@ def main():
 
         output_content = "\n".join(md_lines)
 
-    # Determine destination path
+    # Determine destination path: explicit file, or {title}.md inside a directory (default: cwd)
+    default_name = f"{sanitize_filename(title)}.md"
     if args.output:
         out_path = Path(args.output)
+        if out_path.is_dir() or args.output.endswith(("/", "\\")):
+            out_path = out_path / default_name
     else:
-        clean_title = sanitize_filename(title)
-        out_path = Path(f"inbox/clippings/{clean_title}.md")
+        out_path = Path(default_name)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
@@ -283,4 +242,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (RuntimeError, ValueError, OSError) as e:
+        # Expected failures (extraction error, bad URL, missing file): show the message only, no traceback.
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
