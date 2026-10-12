@@ -20,7 +20,7 @@ from pathlib import Path
 
 # Ensure script directory is on sys.path for importing verify_lossless
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from verify_lossless import TRANSCRIPT_MARKERS
+from verify_lossless import find_transcript_heading
 
 def split_transcript(file_path: str, chapters_per_chunk: int = 5):
     p = Path(file_path).resolve()
@@ -31,13 +31,11 @@ def split_transcript(file_path: str, chapters_per_chunk: int = 5):
     with open(p, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # Locate transcript start using shared TRANSCRIPT_MARKERS
+    # Locate transcript start: the end of the transcript heading line (shared with verify_lossless)
     transcript_pos = -1
-    for marker in TRANSCRIPT_MARKERS:
-        pos = content.find(marker)
-        if pos != -1:
-            transcript_pos = pos + len(marker)
-            break
+    heading = find_transcript_heading(content)
+    if heading:
+        transcript_pos = heading.end()
 
     if transcript_pos == -1:
         # Fallback: look for the first ### heading
@@ -77,12 +75,18 @@ def split_transcript(file_path: str, chapters_per_chunk: int = 5):
         print("Notice: No '### ' chapter headings found. Splitting by timestamps...")
         ts_splits = list(re.finditer(r'(?=^\*\*\d+:\d+(?::\d+)?\*\*\s*·)', body, flags=re.MULTILINE))
         total_ts = len(ts_splits)
-        chunk_size = max(20, total_ts // 4)
         chunks = []
-        for i in range(0, total_ts, chunk_size):
-            start_idx = ts_splits[i].start()
-            end_idx = ts_splits[min(i + chunk_size, total_ts) - 1].start() if (i + chunk_size) < total_ts else len(body)
-            chunks.append(body[start_idx:end_idx].strip())
+        if total_ts == 0:
+            # No chapters or **M:SS** · labels (e.g. transcripts from other sources): keep the body as one chunk
+            print("Notice: No timestamp labels found either. Keeping the whole body as a single chunk.")
+            chunks.append(body)
+        else:
+            chunk_size = max(20, total_ts // 4)
+            for i in range(0, total_ts, chunk_size):
+                # The first chunk also keeps any text before the first timestamp
+                start_idx = 0 if i == 0 else ts_splits[i].start()
+                end_idx = ts_splits[i + chunk_size].start() if (i + chunk_size) < total_ts else len(body)
+                chunks.append(body[start_idx:end_idx].strip())
     else:
         num_chapters = len(chapter_splits)
         print(f"Detected {num_chapters} chapters.")

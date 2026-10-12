@@ -16,28 +16,28 @@ import difflib
 import argparse
 from pathlib import Path
 
-TRANSCRIPT_MARKERS = [
-    '## 访谈实录 (Transcript)',
-    '## 访谈实录',
-    '## 逐字记录',
-    '## 文字记录',
-    '## 逐字稿',
-    '## 对话记录',
-    '## 实录',
-    '## Transcript'
-]
+# Level-2 headings that open the transcript body. Any suffix on the same line is allowed
+# (e.g. "## 逐字稿 (Transcript)", "## 访谈实录（全文）"), since transcripts come from many sources.
+TRANSCRIPT_HEADING_NAMES = ['访谈实录', '逐字记录', '文字记录', '逐字稿', '对话记录', '实录', 'Transcript']
+TRANSCRIPT_HEADING_RE = re.compile(
+    r'^##[ \t]+(?:' + '|'.join(map(re.escape, TRANSCRIPT_HEADING_NAMES)) + r').*$',
+    flags=re.MULTILINE | re.IGNORECASE,
+)
+
+
+def find_transcript_heading(text: str):
+    """Return the match for the first transcript heading line, or None."""
+    return TRANSCRIPT_HEADING_RE.search(text)
 
 def extract_content_text(text: str) -> str:
     """
     Strips metadata, section headings, timestamp markers, and speaker prefixes,
     returning the canonical text sequence with all whitespace removed.
     """
-    # If document has a transcript section heading, check only the transcript portion
-    for marker in TRANSCRIPT_MARKERS:
-        pos = text.find(marker)
-        if pos != -1:
-            text = text[pos + len(marker):]
-            break
+    # If document has a transcript section heading, check only the transcript portion (after the whole heading line)
+    heading = find_transcript_heading(text)
+    if heading:
+        text = text[heading.end():]
 
     # Strip markdown headers (##, ###)
     text = re.sub(r'^#{2,4}\s+.*$', '', text, flags=re.MULTILINE)

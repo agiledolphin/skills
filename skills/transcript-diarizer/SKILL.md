@@ -27,11 +27,8 @@ description: Analyze, identify, and split dialogue speakers in interview and pod
 
 ```mermaid
 flowchart TD
-    A[1. 识别人物、赞助商与章节] --> B{文件是否大于 10,000 字符?}
-    B -->|是| C[2. 执行 uv run split_transcript.py 分块]
-    B -->|否| D[2. 单文件直接排版]
-    C -->|同级目录生成 .tmp.md| E[3. 逐块/多 Agent 角色精细拆分与排版]
-    D --> E
+    A[1. 识别人物、赞助商与章节] --> C[2. 执行 uv run split_transcript.py 分块]
+    C -->|同级目录生成 .tmp.md，小文件只有 1 块| E[3. 逐块/多 Agent 角色精细拆分与排版]
     E --> F[4. 执行 uv run merge_transcript.py 合并与校验]
     F -->|0 diff 校验通过| G[5. 输出精排新文件并自动清理同目录下所有 .tmp.md]
     F -->|发现差异| H[阻断退出，保留同级分块以便排查修复]
@@ -50,9 +47,9 @@ flowchart TD
 
 ---
 
-### 步骤 2：长文件智能分块 (Chunking)
+### 步骤 2：分块 (Chunking)
 
-当逐字稿正文超过 10,000 字符或 5 个章节时，使用分块脚本在**源文件所在目录下**生成临时分块：
+**无论文件大小都先运行分块脚本**——合并与无损校验依赖它生成的分块文件。脚本在**源文件所在目录下**生成临时分块，每 5 个章节一块；小文件只会生成 1 块：
 
 ```bash
 uv run scripts/split_transcript.py "{file_path}" --chapters 5
@@ -61,6 +58,7 @@ uv run scripts/split_transcript.py "{file_path}" --chapters 5
 - 该脚本将自动在 `{file_path}` 所在目录生成：
   - `{stem}.preamble.zh.tmp.md`：前导 Frontmatter、视频嵌入、赞助商文字介绍与目录。
   - `{stem}.part01.zh.tmp.md`、`{stem}.part02.zh.tmp.md` 等：每 5 个章节对应的正文分块。
+- 逐字稿正文从二级标题（如 `## 逐字稿`、`## 访谈实录（全文）`、`## Transcript`）之后开始，标题后缀不限；没有章节标题时按 `**M:SS** ·` 时间戳分块，两者都没有时整篇正文作为 1 块。
 
 ---
 

@@ -19,7 +19,7 @@ from pathlib import Path
 
 # Ensure script directory is on sys.path for importing verify_lossless
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from verify_lossless import verify, TRANSCRIPT_MARKERS
+from verify_lossless import verify, find_transcript_heading, TRANSCRIPT_HEADING_RE
 
 def merge_transcript(original_file: str, output_file: str = None):
     p_orig = Path(original_file).resolve()
@@ -52,11 +52,9 @@ def merge_transcript(original_file: str, output_file: str = None):
         # Fallback: extract directly from original file
         with open(p_orig, 'r', encoding='utf-8') as f:
             orig_content = f.read()
-        for marker in TRANSCRIPT_MARKERS:
-            pos = orig_content.find(marker)
-            if pos != -1:
-                preamble_content = orig_content[:pos]
-                break
+        heading = find_transcript_heading(orig_content)
+        if heading:
+            preamble_content = orig_content[:heading.start()]
         else:
             first_h3 = orig_content.find('\n### ')
             preamble_content = orig_content[:first_h3] if first_h3 != -1 else ""
@@ -73,11 +71,11 @@ def merge_transcript(original_file: str, output_file: str = None):
 
     preamble_updated = re.sub(r'^title:\s*["\']?(.*?)["\']?\s*$', update_title, preamble_content, flags=re.MULTILINE)
     
-    # Strip any existing transcript markers from the end of preamble to prevent duplicate headings
-    for marker in TRANSCRIPT_MARKERS:
-        if preamble_updated.rstrip().endswith(marker):
-            preamble_updated = preamble_updated.rstrip()[:-len(marker)].rstrip()
-            break
+    # Strip an existing transcript heading line from the end of preamble to prevent duplicate headings
+    stripped = preamble_updated.rstrip()
+    last_line_start = stripped.rfind('\n') + 1
+    if TRANSCRIPT_HEADING_RE.match(stripped[last_line_start:]):
+        preamble_updated = stripped[:last_line_start].rstrip()
 
     # Ensure clean standardized section title
     preamble_updated = preamble_updated.rstrip() + '\n\n## 访谈实录 (Transcript)\n\n'

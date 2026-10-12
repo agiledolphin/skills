@@ -7,86 +7,68 @@ import os
 import re
 import argparse
 
-def split_markdown(file_path, min_chars=5000, max_chars=8000):
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    lines = content.splitlines(keepends=True)
-    chunks = []
-    current_chunk_lines = []
-    current_chunk_len = 0
-    
+def find_split_points(lines):
+    """
+    Return (priority, index) pairs meaning "a chunk may end before lines[index]".
+    Priority 1: before a heading (#, ##); 2: after a blank line; 3: after a sentence end.
+    Lines inside fenced code blocks are never split points.
+    """
+    points = []
     in_code_block = False
     code_block_fence = ""
-    
-    # Potential split points: (priority, line_index)
-    # Priority 1: Headings (#, ##)
-    # Priority 2: Blank lines
-    # Priority 3: Sentence ends (approximate)
-    split_points = []
-
     for i, line in enumerate(lines):
-        # Track code block state
         fence_match = re.match(r'^(\s{0,3})(```+|~~~+)', line)
         if fence_match:
             if not in_code_block:
                 in_code_block = True
                 code_block_fence = fence_match.group(2)
-            else:
-                if fence_match.group(2).startswith(code_block_fence):
-                    in_code_block = False
-        
-        current_chunk_lines.append(line)
-        current_chunk_len += len(line)
-        
-        # Identify split points (only when NOT in a code block)
-        if not in_code_block:
-            if re.match(r'^#{1,2}\s', line):
-                # Priority 1: Headings. Heading starts a NEW chunk.
-                # So we record the index BEFORE this line as a split point.
-                split_points.append((1, len(current_chunk_lines) - 1))
-            elif line.strip() == "":
-                # Priority 2: Blank lines. Split AFTER the blank line.
-                split_points.append((2, len(current_chunk_lines)))
-            elif re.search(r'[。！？.!?]\s*$', line):
-                # Priority 3: Sentence ends. Split AFTER the line.
-                split_points.append((3, len(current_chunk_lines)))
+            elif fence_match.group(2).startswith(code_block_fence):
+                in_code_block = False
+            continue
+        if in_code_block:
+            continue
+        if re.match(r'^#{1,2}\s', line):
+            points.append((1, i))
+        elif line.strip() == "":
+            points.append((2, i + 1))
+        elif re.search(r'[。！？.!?]\s*$', line):
+            points.append((3, i + 1))
+    return points
 
-        # Check if we should split
-        if current_chunk_len >= min_chars:
-            # We are in the target window. Try to find the best split point.
-            best_point = None
-            
-            # If we exceed max_chars, we MUST split at the best point found so far.
-            if current_chunk_len > max_chars:
-                # Filter points within current chunk
-                valid_points = [p for p in split_points if p[1] > 0]
-                if valid_points:
-                    # Sort by priority (lower number is higher priority)
-                    valid_points.sort(key=lambda x: x[0])
-                    best_point = valid_points[0]
-                else:
-                    # Emergency split if no points found but we exceeded max
-                    # (Should only happen in extremely long code blocks/tables)
-                    pass 
 
-            if best_point:
-                split_idx = best_point[1]
-                # Split the lines
-                chunk_lines = current_chunk_lines[:split_idx]
-                remaining_lines = current_chunk_lines[split_idx:]
-                
-                if chunk_lines:
-                    chunks.append("".join(chunk_lines))
-                    current_chunk_lines = remaining_lines
-                    current_chunk_len = sum(len(l) for l in current_chunk_lines)
-                    split_points = [] # Reset points for new chunk
-                    # Re-populate split points for the carried-over lines
-                    # (Simplification: just continue)
-            
+def split_markdown(file_path, min_chars=5000, max_chars=8000):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    lines = content.splitlines(keepends=True)
+    # offsets[i] = number of characters before lines[i]
+    offsets = [0]
+    for line in lines:
+        offsets.append(offsets[-1] + len(line))
+    points = find_split_points(lines)
+
+    chunks = []
+    start = 0
+    while offsets[-1] - offsets[start] > max_chars:
+        candidates = [(prio, idx) for prio, idx in points if idx > start]
+        # Prefer chunks between min and max; otherwise anything under max; otherwise the first point past max
+        in_window = [c for c in candidates if min_chars <= offsets[c[1]] - offsets[start] <= max_chars]
+        under_max = [c for c in candidates if offsets[c[1]] - offsets[start] <= max_chars]
+        pool = in_window or under_max
+        if pool:
+            # Best priority first; among equal priority, the latest point keeps chunks as large as possible
+            _, split_idx = min(pool, key=lambda c: (c[0], -c[1]))
+        elif candidates:
+            # Emergency split: an oversized code block or table with no point under max
+            split_idx = min(idx for _, idx in candidates)
+        else:
+            break
+        chunks.append("".join(lines[start:split_idx]))
+        start = split_idx
+
     # Add final chunk
-    if current_chunk_lines:
-        chunks.append("".join(current_chunk_lines))
+    if start < len(lines):
+        chunks.append("".join(lines[start:]))
 
     # Write files
     base_name = os.path.basename(file_path)
