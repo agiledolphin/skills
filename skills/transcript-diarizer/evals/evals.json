@@ -5,7 +5,9 @@
       "id": 1,
       "prompt": "帮我把 evals/files/pocket-parks.zh.md 这份播客逐字稿拆分一下对话者。",
       "expected_output": "识别主持人林舟、嘉宾周岚和赞助商青柠笔记；把同一时间戳内混在一起的问答切分成独立段落，使用 **姓名**： 格式；赞助口播归属主持人；合并后通过 0 diff 无损校验，生成 pocket-parks (精排对话版).zh.md，原文件不变、临时文件清理干净。",
-      "files": ["evals/files/pocket-parks.zh.md"],
+      "files": [
+        "evals/files/pocket-parks.zh.md"
+      ],
       "expectations": [
         "生成源文件同目录下的 pocket-parks (精排对话版).zh.md，源文件内容未被修改",
         "merge_transcript.py 输出 [PASSED] 100% 文本无损对齐 (0 diff)",
@@ -14,7 +16,7 @@
         "0:12 段被切分为林舟的提问（以“口袋公园？”结尾）和周岚的回答两个段落",
         "0:31 段的“［笑声］”被完整保留",
         "0:52 段的青柠笔记口播归属为林舟",
-        "3:58 段被切分为至少三轮：林舟提问“店主愿意吗？”、周岚回答、林舟回应“没错……”",
+        "3:58 段被切分为四轮：林舟提问“店主愿意吗？”、周岚回答、林舟追问“所以这算是一个正循环？”、周岚回应“没错……”",
         "章节标题为 ### 00:00 - 什么是口袋公园 和 ### 03:10 - 谁来维护 的格式，章节之间有 --- 分隔",
         "源文件所在目录中没有残留 *.tmp.md 临时文件"
       ]
@@ -23,7 +25,9 @@
       "id": 2,
       "prompt": "evals/files/indie-games.zh.md 是一期访谈的逐字稿，帮我精排一下，区分主持人和嘉宾。",
       "expected_output": "文件有 6 个章节（超过 5 个），按长文件流程用 split_transcript.py 在源文件同目录分块，逐块完成角色拆分后用 merge_transcript.py 合并，通过 0 diff 校验并清理临时文件。",
-      "files": ["evals/files/indie-games.zh.md"],
+      "files": [
+        "evals/files/indie-games.zh.md"
+      ],
       "expectations": [
         "通过 uv run 调用 scripts/split_transcript.py 分块，分块临时文件生成在源文件所在目录，而不是 /tmp 或工作区根目录",
         "merge_transcript.py 输出 [PASSED] 100% 文本无损对齐 (0 diff)",
@@ -33,7 +37,9 @@
         "8:15 中插的青柠笔记口播归属为林舟",
         "Godot、GDScript 等英文术语和所有“［笑声］”“［音乐］”标记被完整保留",
         "6 个章节标题全部保留，格式为 ### MM:SS - 标题",
-        "合并成功后，源文件所在目录中没有残留 *.tmp.md 临时文件"
+        "合并成功后，源文件所在目录中没有残留 *.tmp.md 临时文件",
+        "源文件 indie-games.zh.md 内容未被修改",
+        "两个分块的交界处（### 08:50 章节与 ### 10:30 章节之间）有且只有一条 --- 分隔线"
       ]
     }
   ]
