@@ -17,9 +17,6 @@
   - sentence-translator 长文件恰好在二级标题前切块，分块边界检查容易通过；需要能迫使在同一节两段之间切开的材料。
   - sentence-translator 日文材料只有 13 行，区分度低。
 
-### 2. medical-executive-profiler：参考卡保存位置
-- 目前固定保存到当前工作目录；wechat-article-reviewer 已改为"用户指定 → 工作区约定 → 当前工作目录"，可考虑统一。
-
 ## 待定（暂不处理）
 
 - **transcript-diarizer 支持更多时间戳写法**：`verify_lossless.py` 目前只会去掉 `**0:00** ·` 这一种时间戳标签；其他来源的稿子若用 `[00:12]`、`(00:12)` 等写法，去掉时间戳会被当成删减内容，导致无损校验失败。遇到这类稿子时再扩展识别规则（`split_transcript.py` 的时间戳分块规则也要同步）。
