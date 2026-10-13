@@ -11,41 +11,65 @@ description: >
 
 ### 第一步：获取文章内容
 
-微信公众号（`mp.weixin.qq.com`）有严格的反爬机制，`web_fetch` 通常会被 `robots.txt` 屏蔽。因此需要按优先级依次尝试以下方式获取内容：
+微信公众号（`mp.weixin.qq.com`）有严格的反爬机制，各 Agent 自带的网页抓取（fetch 类）工具通常会被反爬或 `robots.txt` 拦截。因此需要按优先级依次尝试以下方式获取内容：
 
 **方式 A（推荐）：通过 Agent-Browser 工具自动化抓取**
 
 使用 `agent-browser` 技能调用浏览器自动化 CLI，模拟真实用户浏览行为，可绕过 `robots.txt` 限制，是获取微信公众号文章内容的最佳方式。
 
-调用方式分两步：
-
-**步骤 1**：激活 `agent-browser` 技能。
-- **Gemini CLI**: 使用 `activate_skill(name="agent-browser")` 工具。
-- **Claude Code**: 使用 `Skill` 工具加载 `agent-browser` 文档。
-
-**步骤 2**：使用 **Shell 运行工具**（Gemini CLI 为 `run_shell_command`，Claude Code 为 `bash`）依次执行以下 CLI 命令：
+**前提**：当前环境能执行 shell 命令，且已安装 `agent-browser`（`npm i -g agent-browser && agent-browser install`）。以下命令与具体 Agent 无关，用当前 Agent 的 shell 命令工具执行即可；如果 Agent 提供了 `agent-browser` 的技能或文档，可先加载以了解更多用法。
 
 ```bash
+# 使用独立的浏览器会话，避免干扰其他任务
+export AGENT_BROWSER_SESSION="$(agent-browser session id --scope worktree --prefix wx)"
+
 # 打开文章并等待页面加载完成
 agent-browser open "{文章URL}" && agent-browser wait --load networkidle
 
-# 提取标题、公众号名、发布时间、正文全文
+# 提取标题、公众号名、发布时间、正文（含图片位置）和加粗片段
 agent-browser eval --stdin <<'EVALEOF'
-JSON.stringify({
-  title: document.querySelector('#activity-name')?.innerText?.trim() || '',
-  author: document.querySelector('#js_name')?.innerText?.trim() || '',
-  publishTime: document.querySelector('#publish_time')?.innerText?.trim() || '',
-  content: document.querySelector('#js_content')?.innerText?.trim() || ''
-})
+(() => {
+  const root = document.querySelector('#js_content');
+  if (!root) return JSON.stringify({ error: '未找到正文容器 #js_content（可能是验证页面或文章已删除）' });
+  // 微信图片是懒加载的：未滚动到的图片尚未加载，但 data-src 中有真实地址。
+  // 用 [图片N] 标记替换图片，保留它们在正文中的位置。
+  const clone = root.cloneNode(true);
+  const images = [];
+  clone.querySelectorAll('img').forEach((img) => {
+    images.push({
+      n: images.length + 1,
+      src: img.getAttribute('data-src') || img.getAttribute('src') || '',
+      type: img.getAttribute('data-type') || '',
+      width: img.getAttribute('data-w') || '',
+    });
+    img.replaceWith(document.createTextNode(`\n[图片${images.length}]\n`));
+  });
+  // innerText 需要元素在页面中才能保留换行，临时放到屏幕外
+  clone.style.cssText = 'position:absolute;left:-99999px;display:block';
+  document.body.appendChild(clone);
+  const content = clone.innerText.trim();
+  clone.remove();
+  return JSON.stringify({
+    title: document.querySelector('#activity-name')?.innerText?.trim() || '',
+    author: document.querySelector('#js_name')?.innerText?.trim() || '',
+    publishTime: document.querySelector('#publish_time')?.innerText?.trim() || '',
+    content,
+    images,
+    bold: [...root.querySelectorAll('strong, b')].map((e) => e.innerText.trim()).filter(Boolean),
+  });
+})()
 EVALEOF
+
+agent-browser close
 ```
 
 **提取要点：**
-- 微信文章正文容器的选择器通常为 `#js_content`
-- 需等待页面完全加载（networkidle），因为微信文章使用懒加载机制
-- 同时提取标题（`#activity-name`）、作者（`#js_name`）、发布时间（`#publish_time`）等元信息
-- 记录图片在正文中的相对位置，以辅助格式编排审核
-- 避免执行任何登录操作或处理敏感信息，仅访问公开可见的文章页面
+- 正文容器为 `#js_content`；标题、公众号名、发布时间分别取自 `#activity-name`、`#js_name`、`#publish_time`。
+- **图片懒加载**：未滚动到的图片不会加载，直接读取会得到 1×1 的占位图。因此 `content` 中用 `[图片N]` 标记图片位置，`images` 中保留真实地址（`data-src`）、格式和宽度，格式编排审核据此判断图文位置与分布。
+- **图片内容**：Agent 通常看不到图片内容。除非能实际查看图片（如滚动后截图），否则不评价图片本身，并在报告中注明"图片内容未审阅，图文排版评价仅基于图片位置"。
+- `bold` 列出全部加粗片段，用于检查加粗是否截断、是否有单独加粗的标点。
+- 返回 `{"error": ...}`、遇到验证页面，或正文明显不完整时，改用方式 B/C。
+- 避免执行任何登录操作或处理敏感信息，仅访问公开可见的文章页面。
 
 **方式 B：用户上传 Markdown 文件（备选）**
 - 如果方式 A 不可用或抓取失败，请用户将文章内容整理为 **Markdown 文件**后上传
@@ -63,12 +87,13 @@ EVALEOF
 
 **环境兼容性说明：**
 
-| 运行环境 | Agent-Browser 可用性 | 推荐方式 |
-|----------|----------------------|----------|
-| **Gemini CLI (本地)** | ✅ 可用 | 方式 A（Agent-Browser） |
-| **Claude Code (本地)** | ✅ 可用 | 方式 A（Agent-Browser） |
-| Claude Desktop + MCP | ✅ 可用 | 方式 A（Agent-Browser） |
-| 网页端 AI (Claude/Gemini) | ❌ 不可用 | 方式 B/C（文件或粘贴） |
+本技能不依赖特定 Agent，按环境能力选择方式：
+
+| 运行环境 | 推荐方式 |
+|----------|----------|
+| 能执行 shell 命令、已安装 `agent-browser` 的本地 Agent（如 Claude Code、Codex、Antigravity、Gemini CLI、pi 等） | 方式 A |
+| 能执行 shell 命令但未安装 `agent-browser` | 提示用户可安装后使用方式 A；本次改用方式 B/C |
+| 不能执行命令的环境（如网页端聊天） | 方式 B/C |
 
 技能在执行时应按 A → B → C 顺序降级，不要让用户手动判断。
 
@@ -117,15 +142,16 @@ EVALEOF
 - **引用来源**：引用的政策文件、研究报告、名人名言是否真实准确
 - **时效性**：引用的信息是否过时，所述事件的时间线是否正确
 
-**事实核查执行步骤（必须调用网页搜索工具）：**
+**事实核查执行步骤（必须使用网页搜索）：**
 
 1. 通读全文，列出所有可核查的事实性陈述（日期、数据、人名职务、引用观点、机构名称等）
-2. 针对每条事实，使用 **网页搜索工具**（Gemini CLI 为 `google_web_search`，Claude Code 为 `google_search`）发起搜索，例如：
+2. 针对每条事实，使用当前 Agent 提供的 **网页搜索工具**（各 Agent 名称不同，如 `WebSearch`、`google_web_search`、`web_search` 等）发起搜索，例如：
    - 核查会议日期：搜索 `NVIDIA GTC 2026 日期 地点`
    - 核查人物观点：搜索 `黄仁勋 GTC 2026 演讲 Agentic AI`
    - 核查产品信息：搜索 `卫宁健康 WiNBOT 发布时间`
 3. 将每条事实的搜索结果记录为"✅ 准确 / ⚠️ 待核实 / ❌ 有误"，并在备注中说明依据
 4. 对于搜索后仍无法确认的事实，标注"待核实"，不要凭模型记忆直接判定正误
+5. **当前环境没有网页搜索工具时**：所有事实标注"⚠️ 待核实"，不凭记忆判定正误；事实核查维度得分记为"未评分"，综合得分按其余三个维度的权重重新折算（语言文字、内容质量、格式编排分别按 37.5%、37.5%、25% 计），并在报告中注明"当前环境无法联网搜索，未完成事实核查"
 
 评分参考：
 - 10 分：所有可查证事实均准确无误
@@ -153,9 +179,17 @@ EVALEOF
 
 ### 第三步：生成审核报告并保存
 
-按照下方的报告模板生成审核结果，然后使用 **文件写入工具**（Gemini CLI 为 `write_file`，Claude Code 为 `write`）将报告保存为 Markdown 文件。
+按照下方的报告模板生成审核结果，然后用当前 Agent 的文件写入能力将报告保存为 Markdown 文件。
 
-**文件命名规则**：`review-{公众号名}-{YYYYMMDD}.md`，保存到**用户的当前工作目录**（即调用此技能时的 `pwd`）。例如：`review-卫宁健康-20260324.md`。
+**文件命名规则**：`review-{公众号名}-{YYYYMMDD}.md`，日期为审核当天，例如 `review-卫宁健康-20260324.md`。若同名文件已存在（如同一天审核同一公众号的多篇文章），依次加后缀 `-2`、`-3`……（如 `review-卫宁健康-20260324-2.md`），不要覆盖已有报告。
+
+**保存位置**：技能本身不预设目录，按以下顺序确定：
+
+1. 用户明确指定了路径或目录 → 直接使用；
+2. 否则遵循工作区的约定——工作区的 Agent 指令文件（如 AGENTS.md、CLAUDE.md、GEMINI.md）中写明的报告或输出目录；
+3. 都没有时，保存到当前工作目录。
+
+保存后在回复中告诉用户报告的完整路径。
 
 报告使用 Markdown 格式，结构清晰、问题定位精确、建议具有可操作性。
 
@@ -281,4 +315,4 @@ EVALEOF
 3. **建议可操作**：不要只指出问题，还要给出具体的修改方案或替代表述
 4. **肯定优点**：在总结中适当肯定文章的优点，平衡批评和鼓励
 5. **事实核查谨慎**：对于无法确认的事实，标注"待核实"，不要想当然地判定错误
-6. **必须实际搜索**：事实核查维度要求逐条调用 **网页搜索工具**（`google_web_search` / `google_search`），不能仅凭模型记忆判断；但不要过度搜索显而易见的常识。
+6. **必须实际搜索**：事实核查维度要求逐条使用 **网页搜索工具**（各 Agent 名称不同），不能仅凭模型记忆判断；没有搜索工具时按"待核实"处理；但不要过度搜索显而易见的常识。
